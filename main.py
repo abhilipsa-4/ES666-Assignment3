@@ -29,7 +29,7 @@ def save_results(stitched_image, homographies, output_folder="results"):
 
 def main():
     # Load images from the "Images" folder
-    image_folder = "Images"
+    image_folder = ['I1', 'I2', 'I3', 'I4', 'I5', 'I6']
     images = load_images(image_folder)
     
     if len(images) < 2:
