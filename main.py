@@ -1,6 +1,7 @@
 import cv2
 import os
-from src.DarthVader.stitcher import PanaromaStitcher  
+from src.abhilipsa.stitcher import PanaromaStitcher  
+
 
 def load_images(image_folder):
     # Load images from the specified folder
