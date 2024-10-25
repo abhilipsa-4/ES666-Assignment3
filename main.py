@@ -12,24 +12,34 @@ def load_images_from_folder(folder_path):
     return images
 
 def main():
+    # List of folder names to process
+    folders = ['I1', 'I2', 'I3', 'I4', 'I5', 'I6']
+    
     # Initialize the stitcher
     stitcher = PanaromaStitcher()
-
-    # Load images directly from the main Images folder
-    images = load_images_from_folder('Images')
-    if len(images) < 2:
-        print("Not enough images to create a panorama.")
-        return
-
-    # Create panorama
-    try:
-        panorama, homographies = stitcher.make_panaroma_for_images_in(images)
-        output_path = './results/panorama.jpg'
-        os.makedirs('results', exist_ok=True)
-        cv2.imwrite(output_path, panorama)
-        print("Panorama created and saved!")
-    except Exception as e:
-        print(f"Failed to create panorama. Error: {e}")
+    
+    # Loop through each folder to create panoramas
+    for folder in folders:
+        folder_path = f'Images/{folder}'
+        
+        # Load images from the current folder
+        images = load_images_from_folder(folder_path)
+        if len(images) < 2:
+            print(f"Not enough images in {folder} to create a panorama. Skipping.")
+            continue
+        
+        # Create panorama
+        try:
+            panorama, homographies = stitcher.make_panaroma_for_images_in(images)
+            
+            # Save the results
+            output_path = f'./results/{folder}_panorama.jpg'
+            if not os.path.exists('results'):
+                os.makedirs('results')
+            cv2.imwrite(output_path, panorama)
+            print(f"Panorama created and saved for {folder}!")
+        except Exception as e:
+            print(f"Failed to create panorama for {folder}. Error: {e}")
 
 if __name__ == "__main__":
     main()
