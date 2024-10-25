@@ -21,7 +21,7 @@ def save_results(stitched_image, homographies, output_folder="results"):
 
     # Save homography matrices as text files
     for i, H in enumerate(homographies):
-        filename = os.path.join(output_folder, f"homography_{i+1}.txt")
+        filename = os.path.join('./results', f"homography_{i+1}.txt")
         with open(filename, 'w') as f:
             for row in H:
                 f.write(' '.join(map(str, row)) + '\n')
