@@ -1,41 +1,54 @@
-import pdb
-import src
-import glob
-import importlib
-import os
 import cv2
+import os
+from src.abhilipsa.stitcher import PanaromaStitcher  
 
+def load_images(image_folder):
+    # Load images from the specified folder
+    images = []
+    for filename in sorted(os.listdir(image_folder)):
+        if filename.endswith(".jpg") or filename.endswith(".png"):
+            img = cv2.imread(os.path.join(image_folder, filename))
+            if img is not None:
+                images.append(img)
+    return images
 
+def save_results(stitched_image, homographies, output_folder="results"):
+    # Create output folder if it does not exist
+    os.makedirs(output_folder, exist_ok=True)
 
-### Change path to images here
-path = 'Images{}*'.format(os.sep)  # Use os.sep, Windows, linux have different path delimiters
-###
+    # Save the stitched image
+    cv2.imwrite(os.path.join(output_folder, "stitched_image.jpg"), stitched_image)
 
-all_submissions = glob.glob('./src/*')
-os.makedirs('./results/', exist_ok=True)
-for idx,algo in enumerate(all_submissions):
-    print('****************\tRunning Awesome Stitcher developed by: {}  | {} of {}\t********************'.format(algo.split(os.sep)[-1],idx,len(all_submissions)))
+    # Save homography matrices as text files
+    for i, H in enumerate(homographies):
+        filename = os.path.join(output_folder, f"homography_{i+1}.txt")
+        with open(filename, 'w') as f:
+            for row in H:
+                f.write(' '.join(map(str, row)) + '\n')
+
+def main():
+    # Load images from the "Images" folder
+    image_folder = "Images"
+    images = load_images(image_folder)
+    
+    if len(images) < 2:
+        print("Need at least two images for stitching.")
+        return
+
+    # Initialize the PanoramaStitcher
+    stitcher = PanaromaStitcher()
+    
     try:
-        module_name = '{}_{}'.format(algo.split(os.sep)[-1],'stitcher')
-        filepath = '{}{}stitcher.py'.format( algo,os.sep,'stitcher.py')
-        spec = importlib.util.spec_from_file_location(module_name, filepath)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        PanaromaStitcher = getattr(module, 'PanaromaStitcher')
-        inst = PanaromaStitcher()
+        # Stitch images and obtain homographies
+        stitched_image, homographies = stitcher.make_panaroma_for_images_in(images)
 
-        ###
-        for impaths in glob.glob(path):
-            print('\t\t Processing... {}'.format(impaths))
-            stitched_image, homography_matrix_list = inst.make_panaroma_for_images_in(path=impaths)
+        # Save the results
+        save_results(stitched_image, homographies)
 
-            outfile =  './results/{}/{}.png'.format(impaths.split(os.sep)[-1],spec.name)
-            os.makedirs(os.path.dirname(outfile),exist_ok=True)
-            cv2.imwrite(outfile,stitched_image)
-            print(homography_matrix_list)
-            print('Panaroma saved ... @ ./results/{}.png'.format(spec.name))
-            print('\n\n')
-
+        print("Panorama stitching complete. Check the 'results' folder for output.")
+    
     except Exception as e:
-        print('Oh No! My implementation encountered this issue\n\t{}'.format(e))
-        print('\n\n')
+        print("An error occurred during stitching:", e)
+
+if __name__ == "__main__":
+    main()
