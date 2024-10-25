@@ -14,7 +14,7 @@ def load_images(image_folder):
 
 def save_results(stitched_image, homographies, output_folder="results"):
     # Create output folder if it does not exist
-    os.makedirs(output_folder, exist_ok=True)
+    os.makedirs('./results', exist_ok=True)
 
     # Save the stitched image
     cv2.imwrite(os.path.join(output_folder, "stitched_image.jpg"), stitched_image)
