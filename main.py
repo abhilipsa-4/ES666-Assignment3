@@ -1,6 +1,6 @@
 import cv2
 import os
-from src.abhilipsa.stitcher import PanaromaStitcher
+from src.abhilipsa.stitcher import PanoramaStitcher  
 
 def load_images_from_folder(folder_path):
     images = []
@@ -16,7 +16,7 @@ def main():
     folders = ['I1', 'I2', 'I3', 'I4', 'I5', 'I6']
     
     # Initialize the stitcher
-    stitcher = PanaromaStitcher()
+    stitcher = PanoramaStitcher()
     
     # Loop through each folder to create panoramas
     for folder in folders:
@@ -30,7 +30,7 @@ def main():
         
         # Create panorama
         try:
-            panorama, homographies = stitcher.make_panaroma_for_images_in(images)
+            panorama, homographies = stitcher.make_panorama_for_images_in(images)
             
             # Save the results
             output_path = f'./results/{folder}_panorama.jpg'
@@ -38,6 +38,16 @@ def main():
                 os.makedirs('results')
             cv2.imwrite(output_path, panorama)
             print(f"Panorama created and saved for {folder}!")
+
+            # Print the homography matrices
+            print("Homography Matrices:")
+            for i, H in enumerate(homographies):
+                if H is not None:
+                    print(f"Homography for image pair {i} to {i + 1}:")
+                    print(H)
+                else:
+                    print(f"Homography for image pair {i} to {i + 1}: Not computed (insufficient matches).")
+        
         except Exception as e:
             print(f"Failed to create panorama for {folder}. Error: {e}")
 

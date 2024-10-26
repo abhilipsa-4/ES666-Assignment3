@@ -1,8 +1,8 @@
 import cv2
 import numpy as np
 
-class PanaromaStitcher:
-    def make_panaroma_for_images_in(self, image_list):
+class PanoramaStitcher:
+    def make_panorama_for_images_in(self, image_list):
         # Convert images to the correct format 
         image_list_bgr = [cv2.cvtColor(img, cv2.COLOR_RGB2BGR) for img in image_list]
 
