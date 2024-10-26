@@ -2,93 +2,91 @@ import cv2
 import numpy as np
 
 class PanoramaStitcher:
-    def create_panorama(self, images):
-        # Convert images from RGB to BGR format for OpenCV
-        images_bgr = [cv2.cvtColor(image, cv2.COLOR_RGB2BGR) for image in images]
+    def make_panorama_for_images_in(self, images):
+        """
+        Produces a stitched panorama image and calculates homographies.
+        Returns the final panorama in RGB format and homography matrices.
+        """
+        # Prepare images for processing by converting to BGR
+        bgr_images = [self._convert_to_bgr(image) for image in images]
+        
+        # Extract features from each image
+        keypoint_data, descriptor_data = self._extract_features_from_images(bgr_images)
 
-        # Detect features and compute descriptors
-        keypoints, descriptors = self.extract_features(images_bgr)
+        # Match features across image pairs
+        matches = self._match_descriptors(descriptor_data)
 
-        # Match features between adjacent images
-        matched_features = self.find_feature_matches(descriptors)
+        # Calculate homographies for adjacent images
+        homographies = self._compute_all_homographies(matches, keypoint_data)
 
-        # Calculate homography matrices for image alignment
-        homographies = self.calculate_homographies(matched_features, keypoints)
+        # Stitch images using OpenCV's default stitching pipeline
+        panorama_result, stitching_status = self._stitch_images_with_opencv(bgr_images)
 
-        # Use OpenCV's built-in Stitcher to create the final panorama
-        stitcher = cv2.Stitcher_create()
-        status, final_image = stitcher.stitch(images_bgr)
-
-        if status == cv2.Stitcher_OK:
-            # Convert the stitched image back to RGB format
-            final_image_rgb = cv2.cvtColor(final_image, cv2.COLOR_BGR2RGB)
-            return final_image_rgb, homographies  # Return both the final image and homographies
+        if stitching_status:
+            # Convert the stitched panorama back to RGB for display
+            final_panorama = cv2.cvtColor(panorama_result, cv2.COLOR_BGR2RGB)
+            return final_panorama, homographies
         else:
-            print("Error: Unable to create the panorama.")
+            print("Failed to generate panorama. Check image set.")
             return None, homographies
 
-    def extract_features(self, images):
-        # Initialize SIFT for feature extraction
-        sift = cv2.SIFT_create()
-        kp_list = []
-        desc_list = []
+    def _convert_to_bgr(self, image):
+        return cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+    def _extract_features_from_images(self, images):
+        """Uses SIFT to find and describe features in each image."""
+        sift_detector = cv2.SIFT_create()
+        keypoints, descriptors = [], []
         for image in images:
-            keypoints, descriptors = sift.detectAndCompute(image, None)
-            kp_list.append(keypoints)
-            desc_list.append(descriptors)
-        return kp_list, desc_list
+            kp, desc = sift_detector.detectAndCompute(image, None)
+            keypoints.append(kp)
+            descriptors.append(desc)
+        return keypoints, descriptors
 
-    def find_feature_matches(self, descriptors):
-        # Set up the FLANN matcher
-        flann_params = dict(algorithm=1, trees=5)
-        search_params = dict(checks=50)
-        matcher = cv2.FlannBasedMatcher(flann_params, search_params)
+    def _match_descriptors(self, descriptors):
+        """
+        Match features between consecutive image descriptors using FLANN.
+        Applies Lowe's ratio test for good match selection.
+        """
+        flann_index_params = dict(algorithm=1, trees=5)
+        flann_search_params = dict(checks=50)
+        flann_matcher = cv2.FlannBasedMatcher(flann_index_params, flann_search_params)
 
-        matches = []
+        matched_pairs = []
         for i in range(len(descriptors) - 1):
             if descriptors[i] is not None and descriptors[i + 1] is not None:
-                knn_matches = matcher.knnMatch(descriptors[i], descriptors[i + 1], k=2)
-
-                # Apply Lowe's ratio test
-                good_matches = [m for m, n in knn_matches if m.distance < 0.75 * n.distance]
-
-                if len(good_matches) > 10:
-                    matches.append(good_matches)
-                else:
-                    print(f"Insufficient matches between images {i} and {i + 1}. Skipping.")
-                    matches.append([])  # Append an empty list for consistency
-        return matches
-
-    def calculate_homographies(self, matches, keypoints):
-        homographies = []
-        for i, match_set in enumerate(matches):
-            if len(match_set) < 4:
-                print(f"Not enough matches to compute homography for image pair {i}. Skipping.")
-                homographies.append(None)
-                continue
-
-            src_points = np.float32([keypoints[i][m.queryIdx].pt for m in match_set]).reshape(-1, 2)
-            dst_points = np.float32([keypoints[i + 1][m.trainIdx].pt for m in match_set]).reshape(-1, 2)
-
-            # Calculate the homography matrix using Direct Linear Transform
-            H_matrix = self.compute_homography(src_points, dst_points)
-            if H_matrix is not None:
-                homographies.append(H_matrix)
+                pairs = flann_matcher.knnMatch(descriptors[i], descriptors[i + 1], k=2)
+                filtered_matches = [m for m, n in pairs if m.distance < 0.75 * n.distance]
+                matched_pairs.append(filtered_matches if len(filtered_matches) > 10 else [])
             else:
-                homographies.append(None)
+                matched_pairs.append([])
+        return matched_pairs
 
-        return homographies
+    def _compute_all_homographies(self, matches, keypoints):
+        """Calculate homographies for each matched image pair."""
+        homography_matrices = []
+        for i, match_set in enumerate(matches):
+            if len(match_set) >= 4:
+                src_pts = np.float32([keypoints[i][m.queryIdx].pt for m in match_set]).reshape(-1, 2)
+                dst_pts = np.float32([keypoints[i + 1][m.trainIdx].pt for m in match_set]).reshape(-1, 2)
+                homography = self._compute_single_homography(src_pts, dst_pts)
+                homography_matrices.append(homography)
+            else:
+                homography_matrices.append(None)
+        return homography_matrices
 
-    def compute_homography(self, src_pts, dst_pts):
-        # Construct the matrix for DLT
+    def _compute_single_homography(self, src_pts, dst_pts):
+        """Direct Linear Transform (DLT) to estimate a homography matrix."""
         A = []
-        for i in range(len(src_pts)):
-            x, y = src_pts[i]
-            x_prime, y_prime = dst_pts[i]
-            A.append([-x, -y, -1, 0, 0, 0, x * x_prime, y * x_prime, x_prime])
-            A.append([0, 0, 0, -x, -y, -1, x * y_prime, y * y_prime, y_prime])
-
-        A = np.array(A)
-        _, _, Vt = np.linalg.svd(A)
+        for (x, y), (xp, yp) in zip(src_pts, dst_pts):
+            A.append([-x, -y, -1, 0, 0, 0, x * xp, y * xp, xp])
+            A.append([0, 0, 0, -x, -y, -1, x * yp, y * yp, yp])
+        
+        _, _, Vt = np.linalg.svd(np.array(A))
         H = Vt[-1].reshape(3, 3)
         return H / H[2, 2] if H[2, 2] != 0 else None
+
+    def _stitch_images_with_opencv(self, images):
+        stitcher = cv2.Stitcher_create()
+        status, stitched_img = stitcher.stitch(images)
+        return stitched_img, (status == cv2.Stitcher_OK)
