@@ -1,122 +1,90 @@
 import cv2
 import numpy as np
-import os
 
 class PanaromaStitcher:
-    def make_panaroma_for_images_in(self, images):
-        # List to store the homography matrices
-        homography_matrices = []
+    def make_panaroma_for_images_in(self, image_list):
+        # Convert images to the correct format 
+        image_list_bgr = [cv2.cvtColor(img, cv2.COLOR_RGB2BGR) for img in image_list]
 
-        # Use the first image as the base
-        stitched_image = images[0]
+        # Detect and extract features
+        keypoints, descriptors = self.detect_and_extract_features(image_list_bgr)
 
-        # Process each subsequent image
-        for i in range(1, len(images)):
-            # Detect and describe features in both images
-            keypoints1, descriptors1 = self.detect_and_describe(stitched_image)
-            keypoints2, descriptors2 = self.detect_and_describe(images[i])
+        # Match features between images
+        matches = self.match_features(descriptors)
 
-            # Match features between the images
-            matches = self.match_features(descriptors1, descriptors2)
-            if len(matches) < 10:
-                print(f"Not enough matches between images {i-1} and {i}. Skipping.")
-                continue
+        # Estimate homography matrices manually
+        homographies = self.estimate_homographies(matches, keypoints)
 
-            # Estimate homography matrix
-            H = self.estimate_homography(keypoints1, keypoints2, matches)
-            homography_matrices.append(H)
+        # Stitch images using OpenCV Stitcher for comparison
+        stitcher = cv2.Stitcher_create()
+        status, stitched_image = stitcher.stitch(image_list_bgr)
 
-            # Warp and blend images together
-            stitched_image = self.warp_and_blend(stitched_image, images[i], H)
+        if status == cv2.Stitcher_OK:
+            # Convert back to RGB for consistent display
+            stitched_image_rgb = cv2.cvtColor(stitched_image, cv2.COLOR_BGR2RGB)
+            return stitched_image_rgb, homographies  # Return stitched image and homography matrices
+        else:
+            print("Error: Unable to stitch images.")
+            return None, homographies
 
-        return stitched_image, homography_matrices
-
-    def detect_and_describe(self, image):
-        # Detect features and compute descriptors using SIFT
+    def detect_and_extract_features(self, image_list):
+        # Use SIFT for feature detection and extraction
         sift = cv2.SIFT_create()
-        keypoints, descriptors = sift.detectAndCompute(image, None)
+        keypoints = []
+        descriptors = []
+        for img in image_list:
+            kp, desc = sift.detectAndCompute(img, None)
+            keypoints.append(kp)
+            descriptors.append(desc)
         return keypoints, descriptors
 
-    def match_features(self, descriptors1, descriptors2):
-        # Match features using BFMatcher with SIFT descriptors
-        bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
-        matches = bf.match(descriptors1, descriptors2)
-        # Sort matches based on distance
-        matches = sorted(matches, key=lambda x: x.distance)
-        return matches[:50]  # Use the top 50 matches
+    def match_features(self, descriptors):
+        # Use FLANN-based matcher
+        index_params = dict(algorithm=1, trees=5)
+        search_params = dict(checks=50)
+        matcher = cv2.FlannBasedMatcher(index_params, search_params)
 
-    def estimate_homography(self, keypoints1, keypoints2, matches):
-        # Extract matched points
-        src_pts = np.float32([keypoints1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
-        dst_pts = np.float32([keypoints2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+        matches = []
+        for i in range(len(descriptors) - 1):
+            if descriptors[i] is not None and descriptors[i + 1] is not None:
+                match = matcher.knnMatch(descriptors[i], descriptors[i + 1], k=2)
 
-        # Estimate the homography matrix with RANSAC
-        H, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-        return H
+                # Apply Lowe's ratio test to keep good matches
+                good_matches = [m for m, n in match if m.distance < 0.75 * n.distance]
 
-    def warp_and_blend(self, image1, image2, H):
-        # Dimensions for the output panorama
-        height, width = image1.shape[:2]
-        warped_image2 = cv2.warpPerspective(image2, H, (width + image2.shape[1], height))
+                if len(good_matches) > 10:
+                    matches.append(good_matches)
+                else:
+                    print(f"Not enough matches between images {i} and {i + 1}. Skipping.")
+        return matches
 
-        # Create a black canvas for the result with the size of the warped image
-        result = np.zeros_like(warped_image2)
-        result[0:height, 0:width] = image1  # Place the first image on the result
+    def estimate_homographies(self, matches, keypoints):
+        homographies = []
+        for i, match_set in enumerate(matches):
+            if len(match_set) < 4:
+                print(f"Not enough matches to compute homography for image pair {i}. Skipping.")
+                continue
 
-        # Define the mask for blending
-        mask1 = (result[:, :, 0] > 0).astype(np.uint8)  # Non-zero regions of image1
-        mask2 = (warped_image2[:, :, 0] > 0).astype(np.uint8)  # Non-zero regions of image2
+            src_pts = np.float32([keypoints[i][m.queryIdx].pt for m in match_set]).reshape(-1, 2)
+            dst_pts = np.float32([keypoints[i + 1][m.trainIdx].pt for m in match_set]).reshape(-1, 2)
 
-        overlap = cv2.bitwise_and(mask1, mask2)  # Overlap region mask
-        unique1 = mask1 - overlap  # Unique region of image1
-        unique2 = mask2 - overlap  # Unique region of image2
+            # Manually compute the homography using Direct Linear Transform 
+            H = self.compute_homography(src_pts, dst_pts)
+            if H is not None:
+                homographies.append(H)
 
-        # Combine images by giving overlap regions an equal weight
-        for c in range(3):  # For each color channel
-            result[:, :, c] = (result[:, :, c] * unique1 +
-                               warped_image2[:, :, c] * unique2 +
-                               (result[:, :, c] // 2 + warped_image2[:, :, c] // 2) * overlap)
+        return homographies
 
-        return result
+    def compute_homography(self, src_pts, dst_pts):
+        # Implementing Direct Linear Transform for homography estimation
+        A = []
+        for i in range(len(src_pts)):
+            x, y = src_pts[i]
+            xp, yp = dst_pts[i]
+            A.append([-x, -y, -1, 0, 0, 0, x*xp, y*xp, xp])
+            A.append([0, 0, 0, -x, -y, -1, x*yp, y*yp, yp])
 
-def load_images_from_folder(folder_path):
-    images = []
-    for filename in sorted(os.listdir(folder_path)):
-        img_path = os.path.join(folder_path, filename)
-        img = cv2.imread(img_path)
-        if img is not None:
-            images.append(img)
-    return images
-
-def main():
-    # List of folder names to process
-    folders = ['I1', 'I2', 'I3', 'I4', 'I5', 'I6']
-    
-    # Initialize the stitcher
-    stitcher = PanaromaStitcher()
-    
-    # Loop through each folder to create panoramas
-    for folder in folders:
-        folder_path = f'Images/{folder}'
-        
-        # Load images from the current folder
-        images = load_images_from_folder(folder_path)
-        if len(images) < 2:
-            print(f"Not enough images in {folder} to create a panorama. Skipping.")
-            continue
-        
-        # Create panorama
-        try:
-            panorama, homographies = stitcher.make_panaroma_for_images_in(images)
-            
-            # Save the results
-            output_path = f'./results/{folder}_panorama.jpg'
-            if not os.path.exists('results'):
-                os.makedirs('results')
-            cv2.imwrite(output_path, panorama)
-            print(f"Panorama created and saved for {folder}!")
-        except Exception as e:
-            print(f"Failed to create panorama for {folder}. Error: {e}")
-
-if __name__ == "__main__":
-    main()
+        A = np.array(A)
+        _, _, Vt = np.linalg.svd(A)
+        H = Vt[-1].reshape(3, 3)
+        return H / H[2, 2] if H[2, 2] != 0 else None
