@@ -3,7 +3,7 @@ import os
 from src.abhilipsa.stitcher import PanoramaStitcher
 
 def load_images(folder_path):
-    """Retrieve images from a specified directory path."""
+    """Retrieving images"""
     images = []
     for filename in sorted(os.listdir(folder_path)):
         img_path = os.path.join(folder_path, filename)
@@ -13,31 +13,31 @@ def load_images(folder_path):
     return images
 
 def generate_panoramas():
-    """Generates and saves panoramas for images in specific folders."""
+    """Generating and saveing panoramas for images in specific folders"""
     folders = ['I1', 'I2', 'I3', 'I4', 'I5', 'I6']
     panorama_creator = PanoramaStitcher()
     
     for folder_name in folders:
         folder_path = f'Images/{folder_name}'
         
-        # Load images and check their count
+        # Loading images and checking their count
         images = load_images(folder_path)
         if len(images) < 2:
             print(f"Folder '{folder_name}' has insufficient images; skipping.")
             continue
 
-        # Create panorama and handle results
+        # Creating panorama 
         try:
             panorama, homographies = panorama_creator.make_panorama_for_images_in(images)
             
-            # Define save path and output
+            # Defining save path and output
             output_path = f'./results/{folder_name}_panorama.jpg'
             os.makedirs('results', exist_ok=True)
             if panorama is not None:
                 cv2.imwrite(output_path, panorama)
                 print(f"Panorama for '{folder_name}' saved successfully.")
             
-            # Display homography matrices
+            # Displaying homography matrices
             print("\nHomography Information:")
             for i, homography in enumerate(homographies):
                 if homography is not None:
