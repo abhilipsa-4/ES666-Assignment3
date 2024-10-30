@@ -2,51 +2,29 @@ import cv2
 import os
 from src.abhilipsa.stitcher import PanoramaStitcher
 
-def load_images(folder_path):
-    """Retrieve images from a specified directory path."""
-    images = []
-    for filename in sorted(os.listdir(folder_path)):
-        img_path = os.path.join(folder_path, filename)
-        img = cv2.imread(img_path)
-        if img is not None:
-            images.append(img)
-    return images
+# Initialize the PanoramaStitcher
+stitcher = PanoramaStitcher()
 
-def generate_panoramas():
-    """Generates and saves panoramas for images in specific folders."""
-    folders = ['I1', 'I2', 'I3', 'I4', 'I5', 'I6']
-    panorama_creator = PanoramaStitcher()
-    
-    for folder_name in folders:
-        folder_path = f'Images/{folder_name}'
-        
-        # Load images and check their count
-        images = load_images(folder_path)
-        if len(images) < 2:
-            print(f"Folder '{folder_name}' has insufficient images; skipping.")
-            continue
+# Path to the images folder
+images_folder = "Images"
 
-        # Create panorama and handle results
-        try:
-            panorama, homographies = panorama_creator.make_panorama_for_images_in(images)
-            
-            # Define save path and output
-            output_path = f'./results/{folder_name}_panorama.jpg'
-            os.makedirs('results', exist_ok=True)
-            if panorama is not None:
-                cv2.imwrite(output_path, panorama)
-                print(f"Panorama for '{folder_name}' saved successfully.")
-            
-            # Display homography matrices
-            print("\nHomography Information:")
-            for i, homography in enumerate(homographies):
-                if homography is not None:
-                    print(f"From image {i} to {i + 1} homography:\n{homography}")
-                else:
-                    print(f"Not enough matches for reliable homography between image {i} and {i + 1}")
-        
-        except Exception as error:
-            print(f"Error encountered while creating panorama for '{folder_name}': {error}")
+# Create output folder if it doesn't exist
+os.makedirs("results", exist_ok=True)
 
-if __name__ == "__main__":
-    generate_panoramas()
+# Create panorama for each folder I1 to I6
+for i in range(1, 7):
+    folder_path = os.path.join(images_folder, f"I{i}")
+    try:
+        stitched_image, homographies = stitcher.make_panorama_for_images_in(folder_path)
+
+        # Save the stitched image
+        output_path = os.path.join("results", f"panorama_{i}.jpg")
+        cv2.imwrite(output_path, stitched_image)
+        print(f"Panorama saved for {folder_path} at {output_path}")
+
+        # Print homography matrices
+        for idx, H in enumerate(homographies):
+            print(f"Homography matrix {idx+1} for {folder_path}:\n", H)
+
+    except Exception as e:
+        print(f"Could not create panorama for {folder_path}. Error: {e}")
