@@ -40,51 +40,34 @@ class PanoramaStitcher:
             descriptors.append(desc)
         return keypoints, descriptors
 
-    # def _match_descriptors(self, descriptors):
-        
-    #     flann_index_params = dict(algorithm=1, trees=5)
-    #     flann_search_params = dict(checks=50)
-    #     flann_matcher = cv2.FlannBasedMatcher(flann_index_params, flann_search_params)
-
-    #     matched_pairs = []
-    #     for i in range(len(descriptors) - 1):
-    #         if descriptors[i] is not None and descriptors[i + 1] is not None:
-    #             pairs = flann_matcher.knnMatch(descriptors[i], descriptors[i + 1], k=2)
-    #             filtered_matches = [m for m, n in pairs if m.distance < 0.75 * n.distance]
-    #             matched_pairs.append(filtered_matches if len(filtered_matches) > 10 else [])
-    #         else:
-    #             matched_pairs.append([])
-    #     return matched_pairs
-
-
-    
+     
 
 def _match_descriptors(self, descriptors):
     matched_pairs = []
     
-    # Iterate through each consecutive pair of descriptor sets
+    # Iterating through each consecutive pair of descriptor sets
     for i in range(len(descriptors) - 1):
         if descriptors[i] is not None and descriptors[i + 1] is not None:
             matches = []
 
-            # Iterate through each descriptor in the first set
+            # Iterating through each descriptor in the first set
             for j, desc1 in enumerate(descriptors[i]):
                 distances = []
                 
-                # Calculate the Euclidean distance to each descriptor in the next image
+                # Calculating the Euclidean distance to each descriptor in the next image
                 for k, desc2 in enumerate(descriptors[i + 1]):
                     distance = np.linalg.norm(desc1 - desc2)
                     distances.append((distance, k))  # Store distance and index of descriptor in img2
 
-                # Sort distances to find the two closest matches
+                # Sorting distances to find the two closest matches
                 distances = sorted(distances, key=lambda x: x[0])
                 
-                # Apply ratio test: the closest match should be significantly closer than the second
+                # Applying ratio test: the closest match should be significantly closer than the second
                 if len(distances) > 1 and distances[0][0] < 0.75 * distances[1][0]:
                     best_match = cv2.DMatch(j, distances[0][1], distances[0][0])
                     matches.append(best_match)
             
-            # Only retain matches if we have enough (e.g., more than 10)
+            # Only retaining matches if we have enough 
             matched_pairs.append(matches if len(matches) > 10 else [])
         else:
             matched_pairs.append([])  # Append empty list if descriptors are missing
@@ -92,7 +75,7 @@ def _match_descriptors(self, descriptors):
 
 
     def _compute_all_homographies(self, matches, keypoints):
-        """Calculate homographies for each matched image pair."""
+        """Calculating homographies for each matched image pair."""
         homography_matrices = []
         for i, match_set in enumerate(matches):
             if len(match_set) >= 4:

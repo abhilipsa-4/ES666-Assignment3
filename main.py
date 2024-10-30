@@ -13,7 +13,7 @@ def load_images(folder_path):
     return images
 
 def generate_panoramas():
-    """Generating and saveing panoramas for images in specific folders"""
+    """Generating and saving panoramas for images in specific folders"""
     folders = ['I1', 'I2', 'I3', 'I4', 'I5', 'I6']
     panorama_creator = PanoramaStitcher()
     
