@@ -5,15 +5,22 @@ from src.abhilipsa.stitcher import PanoramaStitcher
 # Initialize the PanoramaStitcher
 stitcher = PanoramaStitcher()
 
-# Path to the images folder
+# Directory containing the images folder
 images_folder = "Images"
 
-# Create output folder if it doesn't exist
+# Create results directory if it doesn't exist
 os.makedirs("results", exist_ok=True)
 
-# Create panorama for each folder I1 to I6
+# Create panoramas for folders I1 to I6
 for i in range(1, 7):
+    # Construct folder path as a string
     folder_path = os.path.join(images_folder, f"I{i}")
+    
+    # Check if folder_path exists to avoid errors
+    if not os.path.isdir(folder_path):
+        print(f"Directory {folder_path} does not exist.")
+        continue
+
     try:
         stitched_image, homographies = stitcher.make_panorama_for_images_in(folder_path)
 
@@ -27,4 +34,4 @@ for i in range(1, 7):
             print(f"Homography matrix {idx+1} for {folder_path}:\n", H)
 
     except Exception as e:
-        print(f"Could not create panorama for {folder_path}. Error: {e}")
+        print(f"Error encountered while creating panorama for '{folder_path}': {e}")
