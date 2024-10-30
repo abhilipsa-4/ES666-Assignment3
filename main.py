@@ -3,6 +3,7 @@ import os
 from src.abhilipsa.stitcher import PanoramaStitcher  # Corrected typo
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Initialize the PanoramaStitcher
 stitcher = PanoramaStitcher()
 
@@ -50,12 +51,28 @@ def main():
     # Specify the folders containing images
     image_folders = ['I1', 'I2', 'I3', 'I4', 'I5', 'I6']
     
+=======
+def load_images(folder_path):
+    img_list = []
+    for filename in sorted(os.listdir(folder_path)):
+        image_path = os.path.join(folder_path, filename)
+        image = cv2.imread(image_path)
+        if image is not None:
+            img_list.append(image)
+    return img_list
+
+def main():
+    # Specify the folders containing images
+    image_folders = ['I1', 'I2', 'I3', 'I4', 'I5', 'I6']
+    
+>>>>>>> parent of 935afac (major changes-2)
     # Instantiate the panorama stitcher
     stitcher = PanoramaStitcher()
     
     # Iterate through each image folder
     for folder in image_folders:
         path = f'Images/{folder}'
+<<<<<<< HEAD
         
         # Load images from the folder
         images = load_images(path)
@@ -63,6 +80,15 @@ def main():
             print(f"Not enough images in folder {folder} to create a panorama. Skipping.")
             continue
         
+=======
+        
+        # Load images from the folder
+        images = load_images(path)
+        if len(images) < 2:
+            print(f"Not enough images in folder {folder} to create a panorama. Skipping.")
+            continue
+        
+>>>>>>> parent of 935afac (major changes-2)
         # Attempt to create the panorama
         try:
             panorama_image, homographies = stitcher.create_panorama(images)
@@ -88,4 +114,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+<<<<<<< HEAD
+>>>>>>> parent of 935afac (major changes-2)
+=======
 >>>>>>> parent of 935afac (major changes-2)
